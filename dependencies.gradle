@@ -1,0 +1,36 @@
+ext {
+    //Version
+    supportLibrary = '23.3.0'
+
+    //Support Libraries dependencies
+    supportDependencies = [
+            design           :         "com.android.support:design:${supportLibrary}",
+            recyclerView     :         "com.android.support:recyclerview-v7:${supportLibrary}",
+            cardView         :         "com.android.support:cardview-v7:${supportLibrary}",
+            appCompat        :         "com.android.support:appcompat-v7:${supportLibrary}",
+            supportAnnotation:         "com.android.support:support-annotations:${supportLibrary}",
+            supportV13       :         "com.android.support:support-v13:${supportLibrary}"
+    ]
+
+    timber = "com.jakewharton.timber:timber:4.1.2"
+}
+
+
+/**
+ * Configures dependencyUpdates plugin if added in project build.gradle
+ * plugins { id "com.github.ben-manes.versions" version "X.Y.Z" }
+ */
+if (hasProperty("dependencyUpdates")) {
+    dependencyUpdates.resolutionStrategy = {
+        componentSelection { rules ->
+            rules.all { ComponentSelection selection ->
+                boolean rejected = ['alpha', 'beta', 'rc', 'cr', 'm', '20050927.133100'].any { qualifier ->
+                    selection.candidate.version ==~ /(?i).*[.-]${qualifier}[.\d-]*/
+                }
+                if (rejected) {
+                    selection.reject('Release candidate')
+                }
+            }
+        }
+    }
+}

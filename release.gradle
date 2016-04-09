@@ -1,0 +1,85 @@
+/**
+ * Applies release plugin and adds upload task which is automatically run after release task
+ * If the following is specified in gradle.properties
+ *  - ftpServer
+ *  - ftpUser
+ *  - ftpPassword
+ *  - ftpDir
+ *
+ * Release plugin requires version to be specified in gradle.properties
+ *
+ * Requires config the below in project build.gradle file.
+
+ buildscript {
+     repositories {
+        maven { url 'https://plugins.gradle.org/m2/' }
+     }
+     dependencies {
+        classpath 'net.researchgate:gradle-release:2.3.4'
+     }
+ }
+
+ * See here for more info
+ * https://github.com/researchgate/gradle-release
+ */
+
+apply plugin: 'net.researchgate.release'
+
+release {
+    preCommitText = '[Gradle Release Plugin] -'
+    preTagCommitMessage = 'Prepare version'
+    tagCommitMessage = 'Release'
+    newVersionCommitMessage = 'Prepare next development version'
+    tagTemplate = 'v${version}'
+
+    git {
+//        requireBranch = /master|(\d+)-(\d+)-stable/
+        requireBranch = /(\d+)-(\d+)-stable/ // Only allow release from X-Y-stable branches
+    }
+}
+
+beforeReleaseBuild.dependsOn = [clean]
+
+if (hasProperty("apkDir")
+    && hasProperty("ftpServer")
+    && hasProperty("ftpUser")
+    && hasProperty("ftpPassword")
+    && hasProperty("ftpDir")) {
+
+    configurations {
+        ftpAntTask
+    }
+
+    dependencies {
+        ftpAntTask("org.apache.ant:ant-commons-net:1.9.6") {
+            module("commons-net:commons-net:1.4.1") {
+                dependencies "oro:oro:2.0.8:jar"
+            }
+        }
+    }
+
+    /**
+     * Don't run this on its own, use the "release" task.
+     */
+    task uploadRelease << {
+        ant {
+            taskdef(name: 'ftp',
+                    classname: 'org.apache.tools.ant.taskdefs.optional.net.FTP',
+                    classpath: configurations.ftpAntTask.asPath)
+
+            ftp(server: ftpServer,
+                userid: ftpUser,
+                password: ftpPassword,
+                remotedir: ftpDir,
+                verbose: "yes",
+                depends: "yes",
+                retriesAllowed: 5) {
+                    fileset(dir: "${apkDir}/release/") {
+                        include(name: "*.apk")
+                    }
+            }
+        }
+    }
+
+    afterReleaseBuild.dependsOn = [uploadRelease]
+}

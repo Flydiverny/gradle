@@ -1,0 +1,33 @@
+ext {
+    /**
+     * Expects version to be specified in gradle.properties in the format X.Y.Z-?
+     * Calculates a version code in the format XXYYZZ, zero padded if X/Y/Z < 100.
+     */
+    buildVersionCode = {
+        if (project.hasProperty("version")) {
+            def lastIndex = version.indexOf("-")
+
+            if (lastIndex != -1) {
+                version = version.substring(0, lastIndex)
+            }
+
+            return version.tokenize('.')
+                    .collect{sprintf("%02d", it.toInteger())}
+                    .join()
+                    .toInteger()
+        }
+    }
+
+    /**
+     * Simple check for whether or not to consider version as a release.
+     * Only checks if version name contains a dash or not.
+     * @return No dash -> release
+     */
+    isRelease = {
+        if (project.hasProperty("version")) {
+            return version.indexOf("-") == -1
+        }
+
+        return false;
+    }
+}

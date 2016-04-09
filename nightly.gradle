@@ -1,0 +1,85 @@
+/**
+ * Adds a default nightly build type and handling for naming and versioning nightly builds.
+ *
+ * Nightly build type will have its version code set to the current date.
+ * Nightly version name will add -NIGHTLY suffix and remove any -SNAPSHOT tag.
+ *
+ * Adds task to build and upload nightly called "buildAndUploadNightly"
+ * If the following is specified in gradle.properties
+ *  - ftpServer
+ *  - ftpUser
+ *  - ftpPassword
+ *  - ftpNightlyDir
+ *
+ */
+
+/**
+ * @param format
+ * @return current date in specified format
+ */
+def getDate(format) {
+    return new Date().format(format)
+}
+
+android.applicationVariants.all { variant ->
+    // Set Date as version code for nightly.
+    // Strip snapshot from nightly so its only named -NIGHTLY (assuming its set as suffix)
+    if (variant.name == "nightly") {
+        variant.mergedFlavor.versionName = variant.mergedFlavor.versionName.replace("-SNAPSHOT", "");
+        variant.mergedFlavor.versionCode = getDate("yyyyMMdd").toInteger();
+    }
+}
+
+android.buildTypes {
+    //noinspection GroovyAssignabilityCheck
+    nightly {
+        minifyEnabled true
+
+        versionNameSuffix "-NIGHTLY"
+
+        // Separates the nightly build from the release build in Crashlytics.
+        applicationIdSuffix ".nightly"
+    }
+}
+
+if (hasProperty("apkDir")
+        && hasProperty("ftpServer")
+        && hasProperty("ftpUser")
+        && hasProperty("ftpPassword")
+        && hasProperty("ftpNightlyDir")) {
+
+    configurations {
+        ftpAntTask
+    }
+
+    dependencies {
+        ftpAntTask("org.apache.ant:ant-commons-net:1.9.6") {
+            module("commons-net:commons-net:1.4.1") {
+                dependencies "oro:oro:2.0.8:jar"
+            }
+        }
+    }
+
+    task buildAndUploadNightly << {
+        ant {
+            taskdef(name: 'ftp',
+                    classname: 'org.apache.tools.ant.taskdefs.optional.net.FTP',
+                    classpath: configurations.ftpAntTask.asPath)
+
+            ftp(server: ftpServer,
+                    userid: ftpUser,
+                    password: ftpPassword,
+                    remotedir: ftpNightlyDir,
+                    verbose: "yes",
+                    depends: "yes",
+                    retriesAllowed: 5) {
+                fileset(dir: "${apkDir}/nightly/") {
+                    include(name: "**/*.apk")
+                }
+            }
+        }
+    }
+
+    buildAndUploadNightly.mustRunAfter = [clean]
+    buildAndUploadNightly.dependsOn = [build]
+}

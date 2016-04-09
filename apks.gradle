@@ -1,0 +1,61 @@
+/**
+ * Automatically creates tasks to copy and rename the built apk files into another directory.
+ *
+ * Allows configuration in gradle.properties:
+ *    apkName - Name to start archived files with, defaults to project dir name.
+ *    apkFolder - Which folder relative to project root to put apks in, defaults to apks.
+ *
+ * Adds task "deleteArchivedAPKs" to delete apks from archive folder.
+ */
+def apkDirName = hasProperty("apkFolder") ? apkFolder : "apks"
+
+ext {
+    apkDir = "${rootDir}/${apkDirName}"
+}
+
+def getDate(format) {
+    return new Date().format(format)
+}
+
+def getFileName(variant) {
+    def appName = hasProperty("apkName") ? apkName : parent.name
+    String filename = "${appName}_${variant.versionName}";
+
+    if (variant.name == "nightly")
+        filename += "_" + getDate("yyyy-MM-dd");
+
+    return filename
+}
+
+android.applicationVariants.all { variant ->
+    variant.outputs.each { output ->
+        def destination = "${apkDir}/${variant.name}"
+        def taskSuffix = variant.name.capitalize()
+        def assembleTaskName = "assemble${taskSuffix}"
+
+        if (tasks.findByName(assembleTaskName)) {
+            def copyAPKTask = tasks.create(name: "archive${taskSuffix}", type: Copy) {
+                description "Archive/copy APK and mappings.txt to a designated folder."
+                from ("${buildDir}") {
+                    include "**/mapping/${variant.buildType.name}/mapping.txt"
+                    include "**/apk/${output.outputFile.name}"
+                }
+                into destination
+                eachFile { file ->
+                    if (file.toString().contains("mapping")) {
+                        file.path = "${getFileName(variant)}-mapping.txt"
+                    } else {
+                        file.path = "${getFileName(variant)}.apk"
+                    }
+                }
+                includeEmptyDirs = false
+            }
+
+            tasks[assembleTaskName].finalizedBy = [copyAPKTask];
+        }
+    }
+}
+
+task deleteArchivedAPKs(type: Delete) {
+    delete fileTree(dir: apkDir)
+}
